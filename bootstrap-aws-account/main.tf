@@ -22,32 +22,42 @@ resource "aws_organizations_account" "lz_account" {
 }
 
 # Exemple de SCP (deny tout sauf S3)
-data "aws_iam_policy_document" "scp_deny_all_except_s3" {
+
+# SCP : autorise EKS, ECR, S3, VPC, IAM, ELB, EC2, CloudWatch, deny tout le reste
+data "aws_iam_policy_document" "scp_lz_minimal" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "eks:*",
+      "ecr:*",
+      "s3:*",
+      "ec2:*",
+      "iam:*",
+      "elasticloadbalancing:*",
+      "cloudwatch:*",
+      "logs:*",
+      "kms:*",
+      "autoscaling:*",
+      "sts:*",
+      "cloudformation:*"
+    ]
+    resources = ["*"]
+  }
   statement {
     effect = "Deny"
     actions = ["*"]
     resources = ["*"]
-    condition {
-      test     = "StringNotEquals"
-      variable = "aws:RequestedRegion"
-      values   = [var.aws_region]
-    }
-  }
-  statement {
-    effect = "Allow"
-    actions = ["s3:*"]
-    resources = ["*"]
   }
 }
 
-resource "aws_organizations_policy" "scp_s3_only" {
-  name        = "SCP-Allow-S3-Only"
-  description = "Deny all except S3 actions"
-  content     = data.aws_iam_policy_document.scp_deny_all_except_s3.json
+resource "aws_organizations_policy" "scp_lz_minimal" {
+  name        = "SCP-LandingZone-Minimal"
+  description = "Autorise uniquement les services nécessaires à la landing zone cloud native"
+  content     = data.aws_iam_policy_document.scp_lz_minimal.json
   type        = "SERVICE_CONTROL_POLICY"
 }
 
 resource "aws_organizations_policy_attachment" "attach_scp" {
-  policy_id = aws_organizations_policy.scp_s3_only.id
+  policy_id = aws_organizations_policy.scp_lz_minimal.id
   target_id = aws_organizations_account.lz_account.id
 }

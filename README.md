@@ -9,7 +9,7 @@
 	- Utilisez le rôle IAM (ex: `OrganizationAccountAccessRole`) pour assumer le compte.
 
 3. **Déployer les autres dossiers**
-	- Passez dans `bootstrap-s3-oidc/` puis `landing-zone/` et lancez Terraform dans chacun, en utilisant le compte nouvellement créé.
+	- Passez dans `bootstrap-s3/` puis `landing-zone/` et lancez Terraform dans chacun, en utilisant le compte nouvellement créé.
 
 > Respectez cet ordre pour garantir la bonne initialisation de l'environnement AWS.
 # AWS Landing Zone
@@ -21,8 +21,8 @@ Infrastructure AWS simple avec VPC hybride et backend Terraform.
 ```
 aws-lz/
 ├── bootstrap-aws-account/          # aws organization account + SCP
-├── bootstrap-s3-oidc/          # Backend S3 + OIDC GitHub
-└── landing-zone/       # VPC hybride
+├── bootstrap-s3/                 # Backend S3 bootstrap
+└── landing-zone/                 # VPC hybride
 ```
 
 ## Prérequis

@@ -1,19 +1,37 @@
 # Processus complet de déploiement AWS Landing Zone & Application
 
 ## 1. Créer le compte AWS d'atterrissage (Landing Zone)
-- Se connecter avec un compte AWS parent/root (via AWS SSO ou CLI).
+- Se connecter avec un compte AWS parent/root (via AWS login puis eval "$(aws configure export-credentials --profile default --format env)").
 - Aller dans `bootstrap-aws-account/`.
 - Renseigner les variables (nom, email, etc.) dans `terraform.tfvars` ou via CLI.
 - Lancer :
   ```sh
   terraform init
+  terraform plan
   terraform apply
   ```
 - Noter l'ID du compte et le rôle IAM créé.
 
 ## 2. Se connecter au nouveau compte créé
-- Utiliser le rôle IAM (ex: `OrganizationAccountAccessRole`) pour assumer le compte.
-- Configurer le profil AWS CLI ou utiliser `aws sso login` si besoin.
+- Récupérer les outputs Terraform du compte créé :
+  ```sh
+  cd bootstrap-aws-account
+  terraform output account_id
+  terraform output account_arn
+  ```
+- Modifier `~/.aws/config` pour ajouter le profil d'assume role :
+  ```ini
+  [profile finaxys-lz]
+  role_arn = arn:aws:iam::<ACCOUNT_ID>:role/OrganizationAccountAccessRole
+  source_profile = default
+  region = eu-west-1
+  role_session_name = tf-bootstrap
+  ```
+- Exporter les credentials de la session sur ce profil :
+  ```sh
+  eval "$(aws configure export-credentials --profile finaxys-lz --format env)"
+  aws sts get-caller-identity
+  ```
 
 ## 3. Initialiser l'infra cloud native
 - Aller dans `bootstrap-s3-oidc/` puis `landing-zone/` (dans cet ordre).

@@ -1,12 +1,6 @@
 # S3 Bucket pour Terraform State
-resource "random_string" "bucket_suffix" {
-  length  = 8
-  special = false
-  upper   = false
-}
-
 resource "aws_s3_bucket" "terraform_state" {
-  bucket = "${var.state_bucket_name}-${random_string.bucket_suffix.result}"
+  bucket = "${var.state_bucket_name}"
 
   tags = {
     Name = "Terraform State"

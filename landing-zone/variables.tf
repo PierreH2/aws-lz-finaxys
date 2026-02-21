@@ -1,19 +1,3 @@
-# Backend S3
-variable "tf_state_bucket" {
-  description = "Nom du bucket S3 pour stocker le state Terraform"
-  type        = string
-  default     = "<your-tf-state-bucket>"
-}
-variable "tf_state_key" {
-  description = "Chemin/clé du fichier state dans le bucket S3"
-  type        = string
-  default     = "agentic-research/terraform.tfstate"
-}
-variable "tf_state_region" {
-  description = "Région AWS du bucket S3 pour le state"
-  type        = string
-  default     = "eu-west-1"
-}
 variable "aws_region" {
   description = "AWS region"
   type        = string

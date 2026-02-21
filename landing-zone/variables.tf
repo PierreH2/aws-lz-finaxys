@@ -34,6 +34,12 @@ variable "eks_version" {
   default     = "1.29"
 }
 
+variable "fargate_namespaces" {
+  description = "Namespaces Kubernetes à exécuter sur Fargate"
+  type        = list(string)
+  default     = ["default", "kube-system"]
+}
+
 # LB & Volumes
 variable "nlb_name" {
   description = "Nom du Network Load Balancer"

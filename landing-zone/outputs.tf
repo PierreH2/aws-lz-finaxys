@@ -15,7 +15,11 @@ output "eks_cluster_security_group_id" {
 }
 
 output "node_group_role_arn" {
-  value = try(values(module.eks.eks_managed_node_groups)[0].iam_role_arn, null)
+  value = null
+}
+
+output "fargate_profile_arns" {
+  value = [for profile in values(module.eks.fargate_profiles) : profile.fargate_profile_arn]
 }
 
 output "vpc_id" {

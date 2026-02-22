@@ -1,118 +1,148 @@
-# Processus complet de déploiement AWS Landing Zone & Application
+# Processus complet de déploiement AWS Landing Zone & Application (version actuelle)
 
-## 1. Créer le compte AWS d'atterrissage (Landing Zone)
-- Se connecter avec un compte AWS parent/root (via AWS login puis eval "$(aws configure export-credentials --profile default --format env)").
+Ce document reflète le fonctionnement validé actuellement:
+
+- EKS sur Fargate,
+- stockage persistant via EFS,
+- exposition HTTP via Ingress + AWS Load Balancer Controller (ALB dynamique),
+- sans ALB statique provisionné par Terraform.
+
+## 1) Créer le compte AWS d'atterrissage
+
+- Se connecter avec un compte parent/root.
 - Aller dans `bootstrap-aws-account/`.
-- Renseigner les variables (nom, email, etc.) dans `terraform.tfvars` ou via CLI.
-- Lancer :
-  ```sh
-  terraform init
-  terraform plan
-  terraform apply
-  ```
-- Noter l'ID du compte et le rôle IAM créé.
+- Appliquer Terraform:
 
-## 2. Se connecter au nouveau compte créé
-- Récupérer les outputs Terraform du compte créé :
-  ```sh
-  cd bootstrap-aws-account
-  terraform output account_id
-  terraform output account_arn
-  ```
-- Modifier `~/.aws/config` pour ajouter le profil d'assume role :
-  ```ini
-  [profile finaxys-lz]
-  role_arn = arn:aws:iam::<ACCOUNT_ID>:role/OrganizationAccountAccessRole
-  source_profile = default
-  region = eu-west-1
-  role_session_name = tf-bootstrap
-  ```
-- Exporter les credentials de la session sur ce profil :
-  ```sh
-  eval "$(aws configure export-credentials --profile finaxys-lz --format env)"
-  aws sts get-caller-identity
-  ```
+```sh
+terraform init
+terraform plan
+terraform apply
+```
 
-## 3. Initialiser l'infra cloud native
-- Aller dans `bootstrap-s3-oidc/` puis `landing-zone/` (dans cet ordre).
-- Dans chaque dossier :
-  ```sh
-  terraform init
-  terraform apply
-  ```
+- Noter:
+  - `account_id`,
+  - rôle `OrganizationAccountAccessRole`.
 
-## 4. Builder et pousser une image Docker dans ECR
-- Builder l'image :
-  ```sh
-  docker build -t myapp:latest .
-  ```
-- Récupérer l'URL du repo ECR (output Terraform ou AWS Console).
-- Taguer et pousser :
-  ```sh
-  aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <account-id>.dkr.ecr.<region>.amazonaws.com
-  docker tag myapp:latest <account-id>.dkr.ecr.<region>.amazonaws.com/myapp:latest
-  docker push <account-id>.dkr.ecr.<region>.amazonaws.com/myapp:latest
-  ```
+## 2) Assumer le rôle dans le nouveau compte
 
-## 5. Déployer l'application sur EKS
-- Récupérer le kubeconfig du cluster EKS (output Terraform ou AWS Console) :
-  ```sh
-  aws eks update-kubeconfig --region <region> --name <cluster-name>
-  ```
-- Créer un manifest Kubernetes (exemple) :
-  ```yaml
-  apiVersion: apps/v1
-  kind: Deployment
-  metadata:
-    name: myapp
-    namespace: default
-  spec:
-    replicas: 1
-    selector:
-      matchLabels:
-        app: myapp
-    template:
-      metadata:
-        labels:
-          app: myapp
-      spec:
-        containers:
-          - name: myapp
-            image: <account-id>.dkr.ecr.<region>.amazonaws.com/myapp:latest
-            ports:
-              - containerPort: 8000
-  ---
-  apiVersion: v1
-  kind: Service
-  metadata:
-    name: myapp
-  spec:
-    type: LoadBalancer
-    selector:
-      app: myapp
-    ports:
-      - protocol: TCP
-        port: 80
-        targetPort: 8000
-  ```
-- Appliquer le manifest :
-  ```sh
-  kubectl apply -f myapp.yaml
-  ```
+Configurer un profil assume-role puis exporter les credentials:
 
-## 6. Accéder à l'application
-- Récupérer l'adresse du LoadBalancer (NLB) :
-  ```sh
-  kubectl get svc myapp
-  ```
-- Utiliser l'EXTERNAL-IP ou le DNS affiché pour accéder à l'application depuis Internet.
+```ini
+[profile finaxys-lz]
+role_arn = arn:aws:iam::<ACCOUNT_ID>:role/OrganizationAccountAccessRole
+source_profile = default
+region = eu-west-1
+role_session_name = tf-bootstrap
+```
 
----
+```sh
+eval "$(aws configure export-credentials --profile finaxys-lz --format env)"
+aws sts get-caller-identity
+```
 
-**Résumé** :
-1. Créer le compte d'atterrissage avec SCP.
-2. Se connecter au compte créé.
-3. Déployer l'infra cloud native (S3, OIDC, EKS, ECR, NLB, etc.).
-4. Builder/pousser l'image Docker dans ECR.
-5. Déployer l'app sur EKS avec un Service LoadBalancer.
-6. Accéder à l'app via l'IP/hostname du NLB.
+## 3) Déployer l'infrastructure Terraform
+
+Ordre recommandé:
+
+1. `bootstrap-s3/`
+2. `landing-zone/`
+
+Dans chaque dossier:
+
+```sh
+terraform init
+terraform plan
+terraform apply
+```
+
+## 4) Accès kubectl au cluster EKS (auth + autorisation)
+
+Mettre à jour kubeconfig:
+
+```sh
+aws eks update-kubeconfig \
+  --name agentic-research-eks \
+  --region eu-west-1 \
+  --role-arn arn:aws:iam::<ACCOUNT_ID>:role/OrganizationAccountAccessRole
+```
+
+Donner les droits Kubernetes au rôle IAM (indispensable):
+
+```sh
+aws eks create-access-entry \
+  --cluster-name agentic-research-eks \
+  --region eu-west-1 \
+  --principal-arn arn:aws:iam::<ACCOUNT_ID>:role/OrganizationAccountAccessRole
+
+aws eks associate-access-policy \
+  --cluster-name agentic-research-eks \
+  --region eu-west-1 \
+  --principal-arn arn:aws:iam::<ACCOUNT_ID>:role/OrganizationAccountAccessRole \
+  --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
+  --access-scope type=cluster
+```
+
+Vérification:
+
+```sh
+kubectl get ns
+```
+
+## 5) Déployer l'image de test dans ECR
+
+Depuis `test_manifest/`:
+
+```sh
+./docker_push.sh
+```
+
+Le script:
+
+- pull une image DockerHub,
+- login ECR,
+- tag/push vers `ecr_repository_url`.
+
+## 6) Déployer l'app test sur EKS Fargate
+
+Depuis `test_manifest/`:
+
+```sh
+./deploy_manifest.sh
+```
+
+Le déploiement utilise:
+
+- `manifest.yaml` (PV/PVC EFS + Deployment + Service + Ingress),
+- l'image ECR pushée,
+- l'exposition via ALB dynamique créée par l'Ingress.
+
+## 7) Vérifications opérationnelles
+
+```sh
+kubectl get pods -A
+kubectl get pvc,pv -n default
+kubectl get ingress web-alb-test-ingress -n default -o wide
+```
+
+Récupérer l'URL ALB dynamique:
+
+```sh
+echo "http://$(kubectl get ingress web-alb-test-ingress -n default -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')"
+```
+
+Test HTTP:
+
+```sh
+curl -I "http://$(kubectl get ingress web-alb-test-ingress -n default -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')"
+```
+
+## Notes importantes
+
+- Fargate + persistance => EFS (pas EBS pour pods applicatifs).
+- `aws eks update-kubeconfig` n'accorde pas les droits RBAC à lui seul.
+- Si `kubectl` répond `Unauthorized`, vérifier le principal AWS actif (`aws sts get-caller-identity`) et les access entries EKS.
+- Si l'Ingress n'expose pas d'URL, vérifier `aws-load-balancer-controller` dans `kube-system`.
+
+## Résultat visuel (équivalent du test `curl`)
+
+![Résultat test EKS/ALB](images/image_eks_test.png)

@@ -7,6 +7,9 @@ module "eks" {
   vpc_id          = module.vpc.vpc_id
   subnet_ids      = module.vpc.private_subnets
   enable_irsa     = true
+  cluster_endpoint_public_access       = true
+  cluster_endpoint_private_access      = true
+  cluster_endpoint_public_access_cidrs = var.eks_public_access_cidrs
 
   fargate_profiles = {
     default = {

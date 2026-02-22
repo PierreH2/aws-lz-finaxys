@@ -12,3 +12,13 @@ terraform {
 provider "aws" {
 	region = var.aws_region
 }
+
+terraform {
+  backend "s3" {
+    bucket       = "ai-agent-project-terraform-state"
+		key          = "landing-zone/terraform.tfstate"
+    region       = "eu-west-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}

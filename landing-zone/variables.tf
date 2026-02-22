@@ -34,35 +34,21 @@ variable "eks_version" {
   default     = "1.29"
 }
 
+variable "eks_public_access_cidrs" {
+  description = "CIDRs autorisés à accéder à l'endpoint public de l'API EKS"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
 variable "fargate_namespaces" {
   description = "Namespaces Kubernetes à exécuter sur Fargate"
   type        = list(string)
   default     = ["default", "kube-system"]
 }
 
-# LB & Volumes
-variable "nlb_name" {
-  description = "Nom du Network Load Balancer"
+# Volumes
+variable "efs_name" {
+  description = "Nom du File System EFS pour les workloads EKS Fargate"
   type        = string
-  default     = "agentic-research-nlb"
-}
-variable "nlb_tg_name" {
-  description = "Nom du Target Group du NLB"
-  type        = string
-  default     = "agentic-research-nlb-tg"
-}
-variable "ebs_volume_size" {
-  description = "Taille des volumes EBS (en Go)"
-  type        = number
-  default     = 20
-}
-variable "ebs_volume_type" {
-  description = "Type de volume EBS"
-  type        = string
-  default     = "gp3"
-}
-variable "ebs_volume_names" {
-  description = "Noms des volumes EBS à créer"
-  type        = list(string)
-  default     = ["agentic-research-data-1", "agentic-research-data-2"]
+  default     = "agentic-research-efs"
 }

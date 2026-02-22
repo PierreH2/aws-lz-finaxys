@@ -25,3 +25,11 @@ output "fargate_profile_arns" {
 output "vpc_id" {
   value = module.vpc.vpc_id
 }
+
+output "efs_file_system_id" {
+  value = aws_efs_file_system.app_data.id
+}
+
+output "efs_security_group_id" {
+  value = aws_security_group.efs.id
+}

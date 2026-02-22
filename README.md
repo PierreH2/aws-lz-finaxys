@@ -22,8 +22,23 @@ Infrastructure AWS simple avec VPC hybride et backend Terraform.
 aws-lz/
 ├── bootstrap-aws-account/          # aws organization account + SCP
 ├── bootstrap-s3/                 # Backend S3 bootstrap
-└── landing-zone/                 # VPC hybride
+├── landing-zone/                 # VPC hybride
+└── test_manifest/                # Image de test ECR + déploiement EKS Fargate + exposition ALB
 ```
+
+## Dossier test_manifest
+
+Le dossier `test_manifest/` contient des fichiers prêts à l'emploi pour valider le chemin complet:
+
+- push d'une image de test DockerHub vers votre repository ECR,
+- déploiement sur EKS Fargate,
+- exposition du service via un ALB (Ingress).
+
+Fichiers principaux:
+
+- `test_manifest/docker_push.sh` : pull/tag/push de l'image vers ECR,
+- `test_manifest/manifest.yaml` : manifest Kubernetes (PV/PVC, Deployment, Service, Ingress ALB),
+- `test_manifest/deploy_manifest.sh` : update kubeconfig EKS puis `kubectl apply`.
 
 ## Prérequis
 
@@ -46,25 +61,12 @@ Workflow Terraform en 2 étapes (fmt/validate/plan puis demande de confirmation)
 # Répond 'y' pour appliquer ou 'n' pour annuler
 ```
 
-## Configuration
-
-### Profil et Région AWS
+### profil AWS
 
 Le script `aws-login.sh` détecte automatiquement votre configuration AWS.
-
-Pour configurer ou changer votre région :
-```bash
-aws configure set region eu-north-1
-```
-
-Ou utiliser une variable d'environnement :
-```bash
-export AWS_REGION=eu-north-1
-```
 
 ## Nettoyage
 
 ```bash
 cd landing-zone/ && terraform destroy
-cd ../bootstrap/ && terraform destroy
 ```

@@ -67,6 +67,10 @@ Le script `aws-login.sh` détecte automatiquement votre configuration AWS.
 
 ## Nettoyage
 
+important: Il faut supprimer toute les ressources kubernetes avant de faire terraform destroy afin d'éviter une dependency deadlock (car terraform ne peut pas supprimer les ressources provisioné par kubernetes directement (ex: les ENI des ALB dynamiques))
+
+important: il faut supprimer toute les images de l'ECR si possible sinon mettre un force destroy.
+
 ```bash
 cd landing-zone/ && terraform destroy
 ```

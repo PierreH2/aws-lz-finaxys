@@ -1,0 +1,59 @@
+
+# =============================================================================
+# Dataprep (SSE server — port 8001)
+# =============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dataprep
+  namespace: ai-agentic
+  labels:
+    app: dataprep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dataprep
+  template:
+    metadata:
+      labels:
+        app: dataprep
+    spec:
+      containers:
+        - name: dataprep
+          image: 333320350721.dkr.ecr.eu-west-1.amazonaws.com/agentic-research:dataprep
+          command: ["poetry", "run"]
+          args: ["dataprep_server", "--config", "configs/config-docker-local.yaml"]
+          ports:
+            - containerPort: 8001
+          volumeMounts:
+            - name: test-files
+              mountPath: /app/test_files
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: test-files
+          persistentVolumeClaim:
+            claimName: test-files-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dataprep
+  namespace: ai-agentic
+  labels:
+    app: dataprep
+spec:
+  type: ClusterIP
+  selector:
+    app: dataprep
+  ports:
+    - port: 8001
+      targetPort: 8001
+      protocol: TCP

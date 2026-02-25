@@ -1,3 +1,17 @@
+output "eks_private_subnet_ids" {
+  description = "IDs des subnets privés du cluster EKS"
+  value       = module.vpc.private_subnets
+}
+
+output "eks_public_subnet_ids" {
+  description = "IDs des subnets publics du cluster EKS"
+  value       = module.vpc.public_subnets
+}
+
+output "eks_oidc_provider" {
+  description = "OIDC provider EKS utilisé pour IRSA (sans https://)"
+  value       = local.eks_oidc_provider
+}
 output "ecr_repository_url" {
   value = aws_ecr_repository.main.repository_url
 }

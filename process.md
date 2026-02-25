@@ -27,6 +27,10 @@ terraform apply
 
 Configurer un profil assume-role puis exporter les credentials:
 
+Vous pouvez trouver l'account_id avec terraform output sur le /bootstrap-aws-account
+
+veuillez ajouter le [profile finaxys-lz] dans ~/.aws/config
+
 ```ini
 [profile finaxys-lz]
 role_arn = arn:aws:iam::<ACCOUNT_ID>:role/OrganizationAccountAccessRole
@@ -42,7 +46,7 @@ aws sts get-caller-identity
 
 ## 3) Déployer l'infrastructure Terraform
 
-Ordre recommandé:
+Ordre:
 
 1. `bootstrap-s3/`
 2. `landing-zone/`

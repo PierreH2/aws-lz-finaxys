@@ -1,0 +1,58 @@
+# =============================================================================
+# ChromaDB
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chromadb
+  namespace: ai-agentic
+  labels:
+    app: chromadb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chromadb
+  template:
+    metadata:
+      labels:
+        app: chromadb
+    spec:
+      containers:
+        - name: chromadb
+          image: chromadb/chroma:1.4.1
+          ports:
+            - containerPort: 8000
+          env:
+            - name: ANONYMIZED_TELEMETRY
+              value: "False"
+          volumeMounts:
+            - name: chromadb-data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: chromadb-data
+          persistentVolumeClaim:
+            claimName: chromadb-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chromadb
+  namespace: ai-agentic
+  labels:
+    app: chromadb
+spec:
+  type: ClusterIP
+  selector:
+    app: chromadb
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP

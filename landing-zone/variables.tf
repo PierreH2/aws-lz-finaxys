@@ -43,7 +43,7 @@ variable "eks_public_access_cidrs" {
 variable "fargate_namespaces" {
   description = "Namespaces Kubernetes à exécuter sur Fargate"
   type        = list(string)
-  default     = ["default", "kube-system"]
+  default     = ["default", "kube-system", "test", "ai-agentic"]
 }
 
 # Volumes
@@ -51,4 +51,17 @@ variable "efs_name" {
   description = "Nom du File System EFS pour les workloads EKS Fargate"
   type        = string
   default     = "agentic-research-efs"
+}
+
+# Rôle IAM dédié à l'administration EKS
+variable "eks_admin_role_name" {
+  description = "Nom du rôle IAM admin EKS à créer"
+  type        = string
+  default     = "EKSAdminRole"
+}
+
+variable "eks_admin_account_id" {
+  description = "ID du compte AWS où créer le rôle (compte cible)"
+  type        = string
+  default     = "333320350721"
 }

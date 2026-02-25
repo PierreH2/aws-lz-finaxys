@@ -1,0 +1,376 @@
+# =============================================================================
+# Namespace
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-agentic
+
+# =============================================================================
+# EFS Persistent Volumes (shared filesystem — replace fs-REPLACE_ME with your EFS ID)
+# =============================================================================
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ai-agentic-test-files-pv
+spec:
+  capacity:
+    storage: 5Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: efs-sc
+  csi:
+    driver: efs.csi.aws.com
+    volumeHandle: fs-REPLACE_ME::fsap-test-files
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ai-agentic-chromadb-pv
+spec:
+  capacity:
+    storage: 10Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: efs-sc
+  csi:
+    driver: efs.csi.aws.com
+    volumeHandle: fs-REPLACE_ME::fsap-chromadb
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ai-agentic-models-pv
+spec:
+  capacity:
+    storage: 20Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: efs-sc
+  csi:
+    driver: efs.csi.aws.com
+    volumeHandle: fs-REPLACE_ME::fsap-models
+
+# =============================================================================
+# Persistent Volume Claims
+# =============================================================================
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-files-pvc
+  namespace: ai-agentic
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: efs-sc
+  resources:
+    requests:
+      storage: 5Gi
+  volumeName: ai-agentic-test-files-pv
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chromadb-data-pvc
+  namespace: ai-agentic
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: efs-sc
+  resources:
+    requests:
+      storage: 10Gi
+  volumeName: ai-agentic-chromadb-pv
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: models-pvc
+  namespace: ai-agentic
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: efs-sc
+  resources:
+    requests:
+      storage: 20Gi
+  volumeName: ai-agentic-models-pv
+
+# =============================================================================
+# ChromaDB
+# =============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chromadb
+  namespace: ai-agentic
+  labels:
+    app: chromadb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chromadb
+  template:
+    metadata:
+      labels:
+        app: chromadb
+    spec:
+      containers:
+        - name: chromadb
+          image: chromadb/chroma:1.4.1
+          ports:
+            - containerPort: 8000
+          env:
+            - name: ANONYMIZED_TELEMETRY
+              value: "False"
+          volumeMounts:
+            - name: chromadb-data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: chromadb-data
+          persistentVolumeClaim:
+            claimName: chromadb-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chromadb
+  namespace: ai-agentic
+  labels:
+    app: chromadb
+spec:
+  type: ClusterIP
+  selector:
+    app: chromadb
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+
+# =============================================================================
+# LLaMA.cpp (CPU inference)
+# =============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llama-cpp-cpu
+  namespace: ai-agentic
+  labels:
+    app: llama-cpp-cpu
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llama-cpp-cpu
+  template:
+    metadata:
+      labels:
+        app: llama-cpp-cpu
+    spec:
+      containers:
+        - name: llama-cpp
+          # TODO: Push your local/llama.cpp:server image to ECR and update this
+          image: 333320350721.dkr.ecr.eu-west-1.amazonaws.com/llama-cpp:server
+          ports:
+            - containerPort: 8002
+          args:
+            - "-m"
+            - "/models/hub/models--bartowski--Qwen2.5-3B-Instruct-GGUF/snapshots/f302c64a2269a69fb27b2f9473b362f5bb8e78d8/Qwen2.5-3B-Instruct-Q4_K_M.gguf"
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "8002"
+            - "--ctx-size"
+            - "4096"
+            - "--n-predict"
+            - "-1"
+            - "-b"
+            - "512"
+            - "-ub"
+            - "512"
+          volumeMounts:
+            - name: models
+              mountPath: /models
+          resources:
+            requests:
+              cpu: "2"
+              memory: 4Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: models-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llama-cpp-cpu
+  namespace: ai-agentic
+  labels:
+    app: llama-cpp-cpu
+spec:
+  type: ClusterIP
+  selector:
+    app: llama-cpp-cpu
+  ports:
+    - port: 8002
+      targetPort: 8002
+      protocol: TCP
+
+# =============================================================================
+# Dataprep (SSE server — port 8001)
+# =============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dataprep
+  namespace: ai-agentic
+  labels:
+    app: dataprep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dataprep
+  template:
+    metadata:
+      labels:
+        app: dataprep
+    spec:
+      containers:
+        - name: dataprep
+          image: 333320350721.dkr.ecr.eu-west-1.amazonaws.com/agentic-research:dataprep
+          command: ["poetry", "run"]
+          args: ["dataprep_server", "--config", "configs/config-docker-local.yaml"]
+          ports:
+            - containerPort: 8001
+          volumeMounts:
+            - name: test-files
+              mountPath: /app/test_files
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: test-files
+          persistentVolumeClaim:
+            claimName: test-files-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dataprep
+  namespace: ai-agentic
+  labels:
+    app: dataprep
+spec:
+  type: ClusterIP
+  selector:
+    app: dataprep
+  ports:
+    - port: 8001
+      targetPort: 8001
+      protocol: TCP
+
+# =============================================================================
+# Agentic Research (CLI — interactive job)
+# =============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentic-research
+  namespace: ai-agentic
+  labels:
+    app: agentic-research
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agentic-research
+  template:
+    metadata:
+      labels:
+        app: agentic-research
+    spec:
+      containers:
+        - name: agentic-research
+          image: 333320350721.dkr.ecr.eu-west-1.amazonaws.com/agentic-research:latest
+          command: ["poetry", "run"]
+          args: ["agentic-research", "--config", "configs/config-docker-local.yaml"]
+          stdin: true
+          tty: true
+          env:
+            - name: MCP_DATAPREP_URL
+              value: "http://dataprep:8001/sse"
+            - name: MCP_FS_COMMAND
+              value: "node"
+            - name: MCP_FS_ARGS
+              value: "/usr/local/lib/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js"
+            - name: LITELLM_LOG
+              value: "ERROR"
+          volumeMounts:
+            - name: test-files
+              mountPath: /app/test_files
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+      volumes:
+        - name: test-files
+          persistentVolumeClaim:
+            claimName: test-files-pvc
+
+# =============================================================================
+# Ingress — expose dataprep SSE API via ALB
+# =============================================================================
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ai-agentic-ingress
+  namespace: ai-agentic
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dataprep
+                port:
+                  number: 8001

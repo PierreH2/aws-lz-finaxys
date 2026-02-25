@@ -19,17 +19,17 @@ Même avec un kubeconfig valide, `kubectl` peut échouer avec `You must be logge
 aws eks update-kubeconfig \
 	--name agentic-research-eks \
 	--region eu-west-1 \
-	--role-arn arn:aws:iam::333320350721:role/OrganizationAccountAccessRole
+	--role-arn arn:aws:iam::333320350721:role/EKSAdminRole
 
 aws eks create-access-entry \
 	--cluster-name agentic-research-eks \
 	--region eu-west-1 \
-	--principal-arn arn:aws:iam::333320350721:role/OrganizationAccountAccessRole
+	--principal-arn arn:aws:iam::333320350721:role/EKSAdminRole
 
 aws eks associate-access-policy \
 	--cluster-name agentic-research-eks \
 	--region eu-west-1 \
-	--principal-arn arn:aws:iam::333320350721:role/OrganizationAccountAccessRole \
+	--principal-arn arn:aws:iam::333320350721:role/EKSAdminRole \
 	--policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
 	--access-scope type=cluster
 ```
@@ -40,7 +40,7 @@ Important:
 - il configure seulement l'authentification (token AWS IAM),
 - l'autorisation dans le cluster (RBAC) doit ensuite être accordée.
 
-Dans notre cas, les 2 commandes `aws eks create-access-entry` + `aws eks associate-access-policy` ont servi à **lier le rôle IAM** `OrganizationAccountAccessRole` à des permissions Kubernetes internes (cluster-admin via politique EKS gérée). Sans cette étape, l'API EKS répond mais refuse les actions `kubectl`.
+Dans notre cas, les 2 commandes `aws eks create-access-entry` + `aws eks associate-access-policy` ont servi à **lier le rôle IAM** `EKSAdminRole` à des permissions Kubernetes internes (cluster-admin via politique EKS gérée). Sans cette étape, l'API EKS répond mais refuse les actions `kubectl`.
 
 ### Vérification
 
@@ -97,31 +97,53 @@ kubectl rollout restart deployment coredns -n kube-system
 
 Sans ce controller, un `Ingress` annoté ALB ne crée aucun load balancer.
 
-Actions appliquées:
+Actions appliquées :
 
 - création/usage de la policy IAM `AWSLoadBalancerControllerIAMPolicy`,
 - création/usage du rôle IRSA `AmazonEKSLoadBalancerControllerRole`,
-- installation du chart Helm `aws-load-balancer-controller` dans `kube-system`,
+- installation du chart Helm `aws-load-balancer-controller` dans `kube-system` :
+
+```bash
+kubectl apply -f alb_service_account.yaml
+
+
+helm repo add eks https://aws.github.io/eks-charts
+helm repo update
+helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName=agentic-research-eks \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller \
+  --set vpcId=vpc-0d748aade1de2cd62 \
+  --set region=eu-west-1 \
+  --set "tolerations[0].key=eks.amazonaws.com/compute-type" \
+  --set "tolerations[0].value=fargate" \
+  --set "tolerations[0].operator=Equal" \
+  --set "tolerations[0].effect=NoSchedule"
+```
+
 - attachement du ServiceAccount `aws-load-balancer-controller` au rôle IAM.
 
-Validation:
+Validation :
 
 ```bash
 kubectl rollout status deployment/aws-load-balancer-controller -n kube-system
-kubectl get ingress web-alb-test-ingress -n default -o wide
+kubectl get ingress web-alb-test-ingress -n test -o wide
 ```
+
+> ⚠️ Si l'une de ces commandes retourne NotFound, vérifie que le chart Helm est bien installé et que l'Ingress a bien été appliqué dans le cluster.
 
 ## 3) Checklist rapide post-déploiement
 
 ```bash
 kubectl get pods -A
-kubectl get pvc,pv -n default
-kubectl get ingress web-alb-test-ingress -n default -o wide
-curl -I http://$(kubectl get ingress web-alb-test-ingress -n default -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+kubectl get pvc,pv -n test
+kubectl get ingress web-alb-test-ingress -n test -o wide
+curl -I http://$(kubectl get ingress web-alb-test-ingress -n test -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 ```
 
 Commande explicite pour récupérer uniquement l'URL ALB dynamique:
 
 ```bash
-echo "http://$(kubectl get ingress web-alb-test-ingress -n default -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')"
+echo "http://$(kubectl get ingress web-alb-test-ingress -n test -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')"
 ```

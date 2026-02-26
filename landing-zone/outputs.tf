@@ -32,18 +32,12 @@ output "node_group_role_arn" {
   value = null
 }
 
-output "fargate_profile_arns" {
-  value = [for profile in values(module.eks.fargate_profiles) : profile.fargate_profile_arn]
-}
-
 output "vpc_id" {
   value = module.vpc.vpc_id
 }
 
-output "efs_file_system_id" {
-  value = aws_efs_file_system.app_data.id
+output "ebs_csi_driver_role_arn" {
+  description = "IAM Role ARN for EBS CSI driver (attach to ebs-csi-controller-sa)"
+  value       = aws_iam_role.ebs_csi_driver.arn
 }
 
-output "efs_security_group_id" {
-  value = aws_security_group.efs.id
-}

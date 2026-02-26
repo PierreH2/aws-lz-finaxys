@@ -65,3 +65,6 @@ credentials
 
 # OS specific
 Thumbs.db
+
+#secrets
+*secret*

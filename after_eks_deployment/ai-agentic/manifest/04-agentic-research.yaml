@@ -1,0 +1,111 @@
+# =============================================================================
+# Agentic Research — Deployment + Service + Ingress (internet-facing)
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentic-research
+  namespace: ai-agentic
+  labels:
+    app: agentic-research
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agentic-research
+  template:
+    metadata:
+      labels:
+        app: agentic-research
+    spec:
+      containers:
+        - name: agentic-research
+          image: 333320350721.dkr.ecr.eu-west-1.amazonaws.com/agentic-research:agentic-research-latest
+          command: ["poetry", "run"]
+          args: ["agentic-research", "--config", "configs/config-default.yaml"]
+          stdin: true
+          tty: true
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: agentic-research-secrets
+          env:
+            - name: MCP_DATAPREP_URL
+              value: "http://dataprep:8001/sse"
+            - name: MCP_FS_COMMAND
+              value: "node"
+            - name: MCP_FS_ARGS
+              value: "/usr/local/lib/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js"
+            - name: LITELLM_LOG
+              value: "ERROR"
+            - name: CHROMA_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: agentic-research-secrets
+                  key: OPENAI_API_KEY
+            - name: APP_VERSION
+              value: "dev"
+          volumeMounts:
+            - name: app-data
+              mountPath: /app/data
+              subPath: data
+            - name: app-data
+              mountPath: /app/output
+              subPath: output
+            - name: app-data
+              mountPath: /app/logs
+              subPath: logs
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+      volumes:
+        - name: app-data
+          persistentVolumeClaim:
+            claimName: app-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agentic-research
+  namespace: ai-agentic
+  labels:
+    app: agentic-research
+spec:
+  type: ClusterIP
+  selector:
+    app: agentic-research
+  ports:
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: agentic-research-ingress
+  namespace: ai-agentic
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/load-balancer-attributes: "access_logs.s3.enabled=false"
+    alb.ingress.kubernetes.io/subnets: "subnet-0b005bd45e5ce38d9,subnet-0ac7e733ba4a63961"
+    alb.ingress.kubernetes.io/security-groups: "sg-0b21bd7e276c05910"
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: agentic-research
+                port:
+                  number: 80

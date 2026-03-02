@@ -56,7 +56,7 @@ spec:
               mountPath: /data
       containers:
         - name: web
-          image: 333320350721.dkr.ecr.eu-west-1.amazonaws.com/agentic-research:fargate-alb-test
+          image: 333320350721.dkr.ecr.eu-west-1.amazonaws.com/agentic-research:latest
           ports:
             - containerPort: 80
           volumeMounts:

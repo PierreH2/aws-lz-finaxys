@@ -21,6 +21,12 @@ module "eks" {
 
       instance_types = ["t3.large"]
 
+      # AL2023 obligatoire pour EKS >= 1.33 (AL2 déprécié)
+      ami_type = "AL2023_x86_64_STANDARD"
+
+      # Force le recycle des nodes après chaque upgrade du control plane
+      force_update_version = true
+
       # Utilisation de block_device_mappings au lieu de disk_size
       # méthode recommandée en v20.x pour du gp3 performant
       block_device_mappings = {

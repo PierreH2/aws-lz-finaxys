@@ -31,7 +31,7 @@ variable "eks_cluster_name" {
 variable "eks_version" {
   description = "EKS Kubernetes version"
   type        = string
-  default     = "1.29"
+  default     = "1.35"
 }
 
 variable "eks_public_access_cidrs" {

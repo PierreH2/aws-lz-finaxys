@@ -32,7 +32,7 @@ spec:
                 name: agentic-research-secrets
           env:
             - name: MCP_DATAPREP_URL
-              value: "http://dataprep:8001/sse"
+              value: "http://dataprep.ai-agentic.svc.cluster.local:8001/sse"
             - name: MCP_FS_COMMAND
               value: "node"
             - name: MCP_FS_ARGS
@@ -91,7 +91,6 @@ metadata:
   namespace: ai-agentic
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
     alb.ingress.kubernetes.io/healthcheck-path: /
     alb.ingress.kubernetes.io/load-balancer-attributes: "access_logs.s3.enabled=false"
